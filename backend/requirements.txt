@@ -1,0 +1,14 @@
+fastapi>=0.115.0
+uvicorn>=0.34.0
+pydantic>=2.10.0
+yt-dlp>=2024.11.04
+youtube-transcript-api>=0.6.2
+chromadb>=0.5.20
+langchain>=0.3.0
+langchain-community>=0.3.0
+langchain-openai>=0.2.0
+langchain-google-genai>=2.0.0
+sentence-transformers>=3.0.0
+python-dotenv>=1.0.1
+requests>=2.32.3
+beautifulsoup4>=4.12.3
