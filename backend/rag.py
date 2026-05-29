@@ -3,6 +3,7 @@ import shutil
 import re
 import time
 import warnings
+import chromadb
 from typing import List, Dict, Any, Generator
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -67,7 +68,7 @@ class VideoRAGManager:
             return SimpleCharEmbedding()
 
     def index_videos(self, video_a: dict, video_b: dict, provider: str, api_key: str):
-        """Chunk transcripts, create embeddings, and store them in ChromaDB."""
+        """Chunk transcripts, create embeddings, and store them in ChromaDB using a fast in-memory EphemeralClient."""
         self.clear_database()
         
         self.video_metadata = {
@@ -110,29 +111,21 @@ class VideoRAGManager:
 
         embeddings = self.get_embeddings(provider, api_key)
         collection_name = f"langchain_{provider}"
-        
+
         try:
-            self.vector_store = Chroma.from_texts(
-                texts=documents,
-                embedding=embeddings,
-                metadatas=metadatas,
-                persist_directory=DB_DIR,
+            # ⚡ ROOT-LEVEL SOLUTION: Pure in-memory EphemeralClient to bypass all disk SQLite cache and dimensions mismatch bugs
+            client = chromadb.EphemeralClient()
+            self.vector_store = Chroma(
+                client=client,
+                embedding_function=embeddings,
                 collection_name=collection_name
             )
+            # Add texts to the in-memory client
+            self.vector_store.add_texts(texts=documents, metadatas=metadatas)
             return True
         except Exception as e:
-            print(f"Error persisting vector store (falling back to in-memory db): {e}")
-            try:
-                self.vector_store = Chroma.from_texts(
-                    texts=documents,
-                    embedding=embeddings,
-                    metadatas=metadatas,
-                    collection_name=collection_name
-                )
-                return True
-            except Exception as inner_e:
-                print(f"Chroma in-memory build failed: {inner_e}")
-                raise inner_e
+            print(f"Error building ephemeral vector store: {e}")
+            raise e
 
     def query_vector_db(self, query: str, k: int = 4) -> List[Dict[str, Any]]:
         """Retrieve most relevant chunks with metadata."""
