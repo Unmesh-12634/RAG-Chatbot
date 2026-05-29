@@ -109,13 +109,15 @@ class VideoRAGManager:
             return False
 
         embeddings = self.get_embeddings(provider, api_key)
+        collection_name = f"langchain_{provider}"
         
         try:
             self.vector_store = Chroma.from_texts(
                 texts=documents,
                 embedding=embeddings,
                 metadatas=metadatas,
-                persist_directory=DB_DIR
+                persist_directory=DB_DIR,
+                collection_name=collection_name
             )
             return True
         except Exception as e:
@@ -124,7 +126,8 @@ class VideoRAGManager:
                 self.vector_store = Chroma.from_texts(
                     texts=documents,
                     embedding=embeddings,
-                    metadatas=metadatas
+                    metadatas=metadatas,
+                    collection_name=collection_name
                 )
                 return True
             except Exception as inner_e:
