@@ -72,11 +72,13 @@ def fetch_metadata(request: FetchUrlsRequest):
         if not url_a or not url_b:
             raise HTTPException(status_code=400, detail="Both video URLs are required.")
 
-        print(f"Scraping Video A (YouTube): {url_a}")
-        video_a_data = scrape_youtube(url_a)
-
-        print(f"Scraping Video B (Instagram): {url_b}")
-        video_b_data = scrape_instagram(url_b)
+        import concurrent.futures
+        print(f"Initiating concurrent metadata extraction for Video A and Video B...")
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            future_a = executor.submit(scrape_youtube, url_a)
+            future_b = executor.submit(scrape_instagram, url_b)
+            video_a_data = future_a.result()
+            video_b_data = future_b.result()
 
         return {
             "video_a": video_a_data,
