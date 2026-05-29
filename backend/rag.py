@@ -52,24 +52,19 @@ class VideoRAGManager:
                 print(f"Windows SQLite file handle lock bypassed (collection cleared successfully): {e}")
 
     def get_embeddings(self, provider: str, api_key: str):
-        """Retrieve the appropriate embedding provider or fallback to local HuggingFace sentence-transformers."""
+        """Retrieve the appropriate embedding provider or fallback to a lightweight Custom Character Similarity Embedding to save RAM."""
         if provider == "openai" and api_key:
             return OpenAIEmbeddings(openai_api_key=api_key, model="text-embedding-3-small")
         elif provider == "gemini" and api_key:
             return GoogleGenerativeAIEmbeddings(google_api_key=api_key, model="models/embedding-001")
         else:
-            try:
-                from langchain_community.embeddings import HuggingFaceEmbeddings
-                os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
-                return HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-            except Exception as e:
-                print(f"Error loading HuggingFace embeddings: {e}. Falling back to Custom Character Similarity Embedding.")
-                class SimpleCharEmbedding:
-                    def embed_documents(self, texts: List[str]) -> List[List[float]]:
-                        return [[sum(ord(c) for c in t[i:i+4]) / 400.0 for i in range(0, min(len(t), 128), 4)] + [0.0]*(32 - min(len(t), 128)//4) for t in texts]
-                    def embed_query(self, text: str) -> List[float]:
-                        return self.embed_documents([text])[0]
-                return SimpleCharEmbedding()
+            # ⚡ ROOT-LEVEL MEMORY RESOLUTION: Bypass heavy HuggingFace/PyTorch dependencies to keep RAM under 50MB (saving Render from OOM crashes)
+            class SimpleCharEmbedding:
+                def embed_documents(self, texts: List[str]) -> List[List[float]]:
+                    return [[sum(ord(c) for c in t[i:i+4]) / 400.0 for i in range(0, min(len(t), 128), 4)] + [0.0]*(32 - min(len(t), 128)//4) for t in texts]
+                def embed_query(self, text: str) -> List[float]:
+                    return self.embed_documents([text])[0]
+            return SimpleCharEmbedding()
 
     def index_videos(self, video_a: dict, video_b: dict, provider: str, api_key: str):
         """Chunk transcripts, create embeddings, and store them in ChromaDB."""
