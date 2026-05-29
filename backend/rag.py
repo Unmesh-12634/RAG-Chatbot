@@ -9,12 +9,6 @@ from typing import List, Dict, Any, Generator
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
 
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_community.vectorstores import Chroma
-from langchain_openai import OpenAIEmbeddings, ChatOpenAI
-from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
-
 DB_DIR = os.path.join(os.path.dirname(__file__), "chroma_db")
 
 def make_progress_bar(percentage: float, max_val: float = 15.0, length: int = 12) -> str:
@@ -55,8 +49,10 @@ class VideoRAGManager:
     def get_embeddings(self, provider: str, api_key: str):
         """Retrieve the appropriate embedding provider or fallback to a lightweight Custom Character Similarity Embedding to save RAM."""
         if provider == "openai" and api_key:
+            from langchain_openai import OpenAIEmbeddings
             return OpenAIEmbeddings(openai_api_key=api_key, model="text-embedding-3-small")
         elif provider == "gemini" and api_key:
+            from langchain_google_genai import GoogleGenerativeAIEmbeddings
             return GoogleGenerativeAIEmbeddings(google_api_key=api_key, model="models/embedding-001")
         else:
             # ⚡ ROOT-LEVEL MEMORY RESOLUTION: Bypass heavy HuggingFace/PyTorch dependencies to keep RAM under 50MB (saving Render from OOM crashes)
@@ -79,6 +75,7 @@ class VideoRAGManager:
         documents = []
         metadatas = []
 
+        from langchain_text_splitters import RecursiveCharacterTextSplitter
         text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=350,
             chunk_overlap=50,
@@ -114,6 +111,7 @@ class VideoRAGManager:
 
         try:
             # ⚡ ROOT-LEVEL SOLUTION: Pure in-memory EphemeralClient to bypass all disk SQLite cache and dimensions mismatch bugs
+            from langchain_community.vectorstores import Chroma
             client = chromadb.EphemeralClient()
             self.vector_store = Chroma(
                 client=client,
@@ -204,6 +202,8 @@ CRITICAL INSTRUCTIONS FOR RESPONSE FORMATTING:
                 yield {"type": "start", "sources": sources}
                 
                 if provider == "openai":
+                    from langchain_openai import ChatOpenAI
+                    from langchain_core.messages import SystemMessage, HumanMessage
                     llm = ChatOpenAI(openai_api_key=api_key, model="gpt-4o", temperature=0.2, streaming=True)
                     messages = [
                         SystemMessage(content=system_prompt),
@@ -212,6 +212,7 @@ CRITICAL INSTRUCTIONS FOR RESPONSE FORMATTING:
                     for chunk in llm.stream(messages):
                         yield {"type": "token", "text": chunk.content}
                 else: # gemini
+                    from langchain_google_genai import ChatGoogleGenerativeAI
                     llm = ChatGoogleGenerativeAI(google_api_key=api_key, model="gemini-1.5-flash", temperature=0.2, streaming=True)
                     prompt = f"{system_prompt}\n\nUSER QUESTION: {question}\n\nAI:"
                     for chunk in llm.stream(prompt):
