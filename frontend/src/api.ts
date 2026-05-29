@@ -25,7 +25,7 @@ export interface SourceCitation {
   platform: 'youtube' | 'instagram';
 }
 
-const API_BASE = 'http://127.0.0.1:8001';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8001';
 
 export async function fetchVideoMetadata(urlA: string, urlB: string): Promise<{ video_a: VideoData; video_b: VideoData }> {
   const response = await fetch(`${API_BASE}/api/fetch-metadata`, {
