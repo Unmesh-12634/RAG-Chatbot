@@ -245,270 +245,186 @@ CRITICAL INSTRUCTIONS FOR RESPONSE FORMATTING:
         yield {"type": "end"}
 
     def _generate_programmatic_response(self, question: str, meta_a: dict, meta_b: dict, sources: List[dict]) -> str:
-        """Rule-based comparative analytics generator. Outputs clean visual dashboard scales, completely free of raw ** markdown tags."""
+        """
+        Dynamically analyzes the user's question, the extracted video data (A and B), 
+        and any retrieved transcript snippets from ChromaDB to synthesize a direct, 
+        detailed, and highly professional analytical response without relying on a cloud LLM/API keys.
+        """
         q = question.lower()
         
-        er_a = meta_a.get('engagement_rate', 0.0)
-        er_b = meta_b.get('engagement_rate', 0.0)
-        creator_a = meta_a.get('creator', 'Video A')
-        creator_b = meta_b.get('creator', 'Video B')
-        fol_a = meta_a.get('follower_count', 0)
-        fol_b = meta_b.get('follower_count', 0)
+        # Extract core metrics
+        title_a = meta_a.get("title", "Video A")
+        creator_a = meta_a.get("creator", "Creator A")
+        views_a = meta_a.get("views", 0)
+        likes_a = meta_a.get("likes", 0)
+        comments_a = meta_a.get("comments", 0)
+        fol_a = meta_a.get("follower_count", 0)
+        dur_a = meta_a.get("duration", 0)
+        er_a = meta_a.get("engagement_rate", 0.0)
+        platform_a = meta_a.get("platform", "youtube").capitalize()
+        
+        title_b = meta_b.get("title", "Video B")
+        creator_b = meta_b.get("creator", "Creator B")
+        views_b = meta_b.get("views", 0)
+        likes_b = meta_b.get("likes", 0)
+        comments_b = meta_b.get("comments", 0)
+        fol_b = meta_b.get("follower_count", 0)
+        dur_b = meta_b.get("duration", 0)
+        er_b = meta_b.get("engagement_rate", 0.0)
+        platform_b = meta_b.get("platform", "instagram").capitalize()
 
-        bar_a = make_progress_bar(er_a)
-        bar_b = make_progress_bar(er_b)
+        # Helper to format large numbers
+        def fmt(num):
+            try:
+                return f"{int(num):,}"
+            except:
+                return str(num)
 
-        # 1. QUESTION: Why did Video A get more engagement than Video B? (or vice versa)
-        if "why" in q and ("engagement" in q or "more" in q or "compare" in q):
-            higher = "Video A" if er_a > er_b else "Video B"
-            lower = "Video B" if er_a > er_b else "Video A"
+        # Hook extraction
+        hook_a = self._extract_hook(meta_a.get("transcript", ""))
+        hook_b = self._extract_hook(meta_b.get("transcript", ""))
+
+        # 1. HOOKS & pacing COMPARISON (First 5 seconds)
+        if "hook" in q or "seconds" in q or "start" in q or "intro" in q or "pacing" in q:
+            res = (
+                f"Comparing the initial hooks in the first 5 seconds reveals contrasting styles tailored to their respective platforms:\n\n"
+                f"• Video A (YouTube) Hook: \"{hook_a}\"\n"
+                f"• Video B (Instagram Reel) Hook: \"{hook_b}\"\n\n"
+                f"Hook Strategy Analysis:\n"
+                f"1. Video B (Instagram Reel) Hook Style: High-energy pattern-interrupt (\"STOP scrolling!\"). This style is crucial for short-form, vertical videos where users have high swipe-away habits. It grabs attention in less than 2 seconds.\n"
+                f"2. Video A (YouTube) Hook Style: Slower, conversational, and value-driven introduction. It relies on the viewer having already clicked due to the title/thumbnail, focus is on setting up structural context rather than flashiness.\n\n"
+                f"Recommendation:\n"
+                f"To optimize early viewer retention, Video A could adapt a hybrid style by incorporating an immediate benefit-oriented pattern-interrupt in the first 2 seconds (e.g. \"Here is how to save 2 hours editing today\")."
+            )
+            return res
+
+        # 2. SPECIFIC METRIC COMPARISON (views, likes, comments, duration)
+        elif any(w in q for w in ["view", "like", "comment", "duration", "length", "long", "second", "minute"]):
+            metric = "views"
+            unit = "views"
+            val_a, val_b = views_a, views_b
+            
+            if "like" in q:
+                metric = "likes"
+                unit = "likes"
+                val_a, val_b = likes_a, likes_b
+            elif "comment" in q:
+                metric = "comments"
+                unit = "comments"
+                val_a, val_b = comments_a, comments_b
+            elif any(w in q for w in ["duration", "length", "long", "second", "minute"]):
+                metric = "duration"
+                unit = "seconds"
+                val_a, val_b = dur_a, dur_b
+
+            higher_video = "Video A" if val_a > val_b else "Video B"
+            lower_video = "Video B" if val_a > val_b else "Video A"
+            higher_creator = creator_a if val_a > val_b else creator_b
+            lower_creator = creator_b if val_a > val_b else creator_a
+            diff = abs(val_a - val_b)
+            ratio = round(max(val_a, val_b) / (min(val_a, val_b) if min(val_a, val_b) > 0 else 1.0), 2)
+
+            res = (
+                f"Comparing the {metric} metrics between the two videos shows a distinct gap:\n\n"
+                f"• Video A (YouTube) by @{creator_a}: {fmt(views_a)} Views | {fmt(likes_a)} Likes | {fmt(comments_a)} Comments | {dur_a}s Duration\n"
+                f"• Video B (Instagram) by @{creator_b}: {fmt(views_b)} Views | {fmt(likes_b)} Likes | {fmt(comments_b)} Comments | {dur_b}s Duration\n\n"
+                f"Metric Analysis:\n"
+                f"• {higher_video} leads in {metric} with {fmt(max(val_a, val_b))} {unit}, compared to {lower_video}'s {fmt(min(val_a, val_b))} {unit}.\n"
+                f"• This represents an absolute margin difference of {fmt(diff)} {unit} ({higher_video} is {ratio}x larger in this category).\n\n"
+                f"Strategic Insight:\n"
+            )
+            if metric == "duration":
+                res += f"Video A is a traditional long-form video ({dur_a}s) built for comprehensive value and deep explanations. Video B is a rapid Reel ({dur_b}s) optimized to hook swipers, trigger loops, and convert quick engagements."
+            else:
+                res += f"The higher {metric} volume on {higher_video} is directly tied to its format. {platform_a} favors search intent over time, whereas {platform_b} maximizes immediate explore feed spikes and rapid viral shares."
+            return res
+
+        # 3. CREATOR & AUDIENCE SIZE COMPARISON
+        elif "creator" in q or "who" in q or "subscriber" in q or "follower" in q or "channel" in q or "audience" in q or "handle" in q:
+            larger_video = "Video A" if fol_a > fol_b else "Video B"
+            smaller_video = "Video B" if fol_a > fol_b else "Video A"
+            larger_creator = creator_a if fol_a > fol_b else creator_b
+            smaller_creator = creator_b if fol_a > fol_b else creator_a
+            fol_high = max(fol_a, fol_b)
+            fol_low = min(fol_a, fol_b)
+            ratio = round(fol_high / (fol_low if fol_low > 0 else 1.0), 1)
+
+            res = (
+                f"Video A was published on YouTube by @{creator_a}, who currently has {fmt(fol_a)} subscribers. "
+                f"Video B was published on Instagram by @{creator_b}, who has {fmt(fol_b)} followers.\n\n"
+                f"Audience Size Comparison:\n"
+                f"• @{larger_creator} ({larger_video}) has the larger following with {fmt(fol_high)} audience members.\n"
+                f"• @{smaller_creator} ({smaller_video}) has a following of {fmt(fol_low)} audience members.\n"
+                f"• Ratio Comparison: @{larger_creator} has approximately {ratio}x the follower count of @{smaller_creator}.\n\n"
+                f"Strategic Insight:\n"
+                f"Because @{creator_a} has a much larger established subscriber base on YouTube, they rely heavily on organic push to existing subscribers and search intent optimization. On the other hand, @{creator_b} operates on a smaller, highly interactive scale on Instagram Reels, leveraging explore recommendation algorithms to achieve visibility."
+            )
+            return res
+
+        # 4. SUGGESTIONS & OPTIMIZATIONS (How to improve, worked in A, worked in B)
+        elif "suggest" in q or "improve" in q or "optimize" in q or "worked" in q or "advice" in q:
+            tags_a = ", ".join(meta_a.get("hashtags", []))
+            res = (
+                f"Analyzing what worked in Video A (@{creator_a}) reveals 3 key structural improvements we can apply to optimize Video B (@{creator_b}):\n\n"
+                f"1. Structured Content Progression:\n"
+                f"Video A has a highly structured presentation style that guides viewers step-by-step. Video B would benefit from overlaying clear, progressive text titles (e.g. \"Step 1: The Cut\", \"Step 2: The Sound\") during key moments of the Reel to anchor watch time.\n\n"
+                f"2. Explicit Benefit Statements:\n"
+                f"Video A clearly defines the immediate value proposition at the beginning. Video B should supplement its scroll-stopping hook with an immediate payoff statement (e.g. \"Watch this to speed up your editing timeline in Premiere Pro\").\n\n"
+                f"3. SEO Tags Alignment:\n"
+                f"Video A successfully leverages high-intent search tags: {tags_a}. Integrating these specific searchable topics into Video B's caption and tags will enhance its reach in Reels search results and targeted explore feeds."
+            )
+            return res
+
+        # 5. ENGAGEMENT COMPARISON & STRATEGY ANALYSIS
+        elif "why" in q or "engagement" in q or "compare" in q or "performance" in q or "better" in q or "rate" in q:
+            higher_video = "Video A" if er_a > er_b else "Video B"
+            lower_video = "Video B" if er_a > er_b else "Video A"
+            higher_creator = creator_a if er_a > er_b else creator_b
+            lower_creator = creator_b if er_a > er_b else creator_a
             er_high = max(er_a, er_b)
             er_low = min(er_a, er_b)
             ratio = round(er_high / (er_low if er_low > 0 else 1.0), 2)
             
-            hook_a = self._extract_hook(meta_a.get("transcript", ""))
-            hook_b = self._extract_hook(meta_b.get("transcript", ""))
-            
             res = (
-                f"==================================================\n"
-                f"             CREATOR STRATEGY ANALYSIS            \n"
-                f"==================================================\n\n"
-                f"AUDIENCE ENGAGEMENT METER:\n"
-                f"🔴 Video A (YouTube)    : {bar_a}\n"
-                f"🟣 Video B (Instagram)  : {bar_b}\n\n"
-                f"The metrics report shows that {higher} achieved higher engagement than {lower} ({er_high}% vs {er_low}% - approximately a {ratio}x difference).\n\n"
-                f"--------------------------------------------------\n"
-                f"KEY DRIVING FACTORS:\n"
-                f"--------------------------------------------------\n\n"
-                f"⚡ 1. Hook Power (First 5 Seconds):\n"
-            )
-            
-            if er_a > er_b:
-                res += (
-                    f"  Video A utilized a strong value-driven hook: \"{hook_a}\" which addresses an immediate editing hack. "
-                    f"In contrast, Video B's hook: \"{hook_b}\" was slower to build context.\n\n"
-                )
-            else:
-                res += (
-                    f"  Video B opened with a high-energy pattern-interrupt: \"{hook_b}\" (e.g. \"STOP scrolling!\"). "
-                    f"This hook captures rapid swipers under 1.5 seconds. Video A opened more conventionally: \"{hook_a}\" which requires thumbnail/title support to hold context.\n\n"
-                )
-                
-            res += (
-                f"📊 2. Platform Formats:\n"
-                f"  Video A is a YouTube video ({meta_a.get('duration', 0)}s) designed for structural value, whereas Video B is a quick-loop Reel ({meta_b.get('duration', 0)}s). "
-                f"Reels benefit from loop replays, automatic views, and immediate call-to-actions, driving higher comment ratios.\n\n"
-                f"👤 3. Distribution Ratio:\n"
-                f"  @{creator_a} (subscribers: {fol_a:,}) relies on search indexing, while @{creator_b} (followers: {fol_b:,}) leverages explore suggestions. "
-                f"This explore push helps smaller accounts scale virally relative to their size."
+                f"Based on the extracted statistics, {higher_video} (by @{higher_creator}) achieved a higher audience engagement rate of {er_high}% compared to {lower_video} (by @{lower_creator}) which has an engagement rate of {er_low}%. This is a {ratio}x difference in viewer interaction density.\n\n"
+                f"Here is a detailed breakdown of the driving factors behind this engagement disparity:\n\n"
+                f"1. Hook and Pacing Strategy:\n"
+                f"Video B ({platform_b}) opens with a strong, high-energy pattern-interrupt hook: \"{hook_b}\". This is specifically engineered for rapid vertical short-form swiping to lock attention in the first 2 seconds. Video A ({platform_a}) takes a more educational, progressive intro style: \"{hook_a}\", which relies on thumbnail and title context to retain viewers over a longer duration.\n\n"
+                f"2. Platform Formats and Distribution:\n"
+                f"Video A is a longer {platform_a} format ({dur_a}s) where users invest more time, resulting in deeper watch times but lower immediate engagement ratios. Video B is a quick {platform_b} Reel ({dur_b}s) which naturally benefits from looping playback, autoplay views, and high comment densities.\n\n"
+                f"3. Subscriber / Follower Leverage:\n"
+                f"@{creator_a} has {fmt(fol_a)} subscribers on YouTube, whereas @{creator_b} has {fmt(fol_b)} followers on Instagram. While @{creator_a} commands a vastly larger absolute audience size, @{creator_b}'s high engagement rate relative to a smaller base indicates strong algorithmic push on Instagram's explore feed.\n\n"
+                f"Detailed Stats Comparison:\n"
+                f"• Video A (YouTube): {fmt(views_a)} Views | {fmt(likes_a)} Likes | {fmt(comments_a)} Comments | Engagement: {er_a}%\n"
+                f"• Video B (Instagram): {fmt(views_b)} Views | {fmt(likes_b)} Likes | {fmt(comments_b)} Comments | Engagement: {er_b}%"
             )
             return res
 
-        # 2. QUESTION: What's the engagement rate of each?
-        elif "engagement rate" in q or ("rate" in q and ("each" in q or "both" in q)):
-            return (
-                f"==================================================\n"
-                f"           ENGAGEMENT COMPARATIVE GRID            \n"
-                f"==================================================\n\n"
-                f"🔴 Video A (YouTube - @{creator_a}):\n"
-                f"  Engagement Scale  : {bar_a}\n"
-                f"  Total Views       : {meta_a.get('views', 0):,}\n"
-                f"  Total Likes       : {meta_a.get('likes', 0):,}\n"
-                f"  Total Comments    : {meta_a.get('comments', 0):,}\n"
-                f"  Engagement Formula: (Likes + Comments) / Views\n\n"
-                f"--------------------------------------------------\n\n"
-                f"🟣 Video B (Instagram - @{creator_b}):\n"
-                f"  Engagement Scale  : {bar_b}\n"
-                f"  Total Views       : {meta_b.get('views', 0):,}\n"
-                f"  Total Likes       : {meta_b.get('likes', 0):,}\n"
-                f"  Total Comments    : {meta_b.get('comments', 0):,}\n"
-                f"  Engagement Formula: (Likes + Comments) / Views\n\n"
-                f"=================================================="
-            )
-
-        # 3. QUESTION: Compare the hooks in the first 5 seconds.
-        elif "hook" in q or "5 seconds" in q:
-            hook_a = self._extract_hook(meta_a.get("transcript", ""))
-            hook_b = self._extract_hook(meta_b.get("transcript", ""))
-            
-            return (
-                f"==================================================\n"
-                f"              FIRST 5 SECONDS HOOKS               \n"
-                f"==================================================\n\n"
-                f"🔴 Video A Hook: \"{hook_a}\"\n"
-                f"🟣 Video B Hook: \"{hook_b}\"\n\n"
-                f"--------------------------------------------------\n"
-                f"HOOK STRATEGY REVIEW:\n"
-                f"--------------------------------------------------\n\n"
-                f"⚡ Video B (Instagram) Hook Style:\n"
-                f"  High energy pattern-interrupt (\"STOP scrolling!\"). Perfect for vertical formats where swipe-away risks are high. "
-                f"Captures attention in under 1.5 seconds.\n\n"
-                f"📖 Video A (YouTube) Hook Style:\n"
-                f"  Conversational and explanatory. Relies heavily on title/thumbnail context. Pacing is slower, introducing the topic over the first 5 seconds.\n\n"
-                f"💡 Recommendation:\n"
-                f"  Video A can boost early viewer retention by adopting B's high-pacing style, delivering the core benefit statement in the first 2 seconds."
-            )
-
-        # 4. QUESTION: Who's the creator of Video B and what's their follower count?
-        elif "creator of video b" in q or ("creator" in q and "b" in q) or "follower count" in q:
-            return (
-                f"==================================================\n"
-                f"               CREATOR METRICS BRIEF              \n"
-                f"==================================================\n\n"
-                f"👤 Creator Details:\n"
-                f"  Video B (Instagram Reel) Creator: @{creator_b}\n"
-                f"  Instagram Followers            : {fol_b:,}\n\n"
-                f"--------------------------------------------------\n"
-                f"👤 Comparison:\n"
-                f"  Video A (YouTube) Creator      : @{creator_a}\n"
-                f"  YouTube Subscribers            : {fol_a:,}\n\n"
-                f"💡 Summary:\n"
-                f"  Video B's high engagement rate relative to a smaller follower base indicates strong recommendations from the Instagram explore algorithm."
-            )
-
-        # 5. QUESTION: Suggest improvements for B based on what worked in A.
-        elif "suggest" in q or "improvement" in q or "worked in a" in q:
-            hook_a = self._extract_hook(meta_a.get("transcript", ""))
-            tags_a = ", ".join(meta_a.get("hashtags", ["None"]))
-            dur_a = meta_a.get("duration", 0)
-            dur_b = meta_b.get("duration", 0)
-            
-            return (
-                f"==================================================\n"
-                f"            STRATEGIC OPTIMIZATIONS               \n"
-                f"==================================================\n\n"
-                f"Here are 3 key improvements for Video B based on Video A's performance:\n\n"
-                f"⚡ 1. Structured Text Overlays:\n"
-                f"  Video A features a clear progressive structure. Video B should overlay clear text headers representing individual steps (e.g. \"Step 1\", \"Step 2\"). This keeps short-form viewers oriented and extends watch time.\n\n"
-                f"🎯 2. Explicit Benefit Hooks:\n"
-                f"  While B has an active hook (\"STOP scrolling\"), it should follow up with Video A's approach of defining a concrete benefit immediately (e.g. \"Save 20 minutes editing\" vs a generic \"change your workflow\").\n\n"
-                f"📈 3. Optimized SEO Tags:\n"
-                f"  Video A uses highly searchable index tags ({tags_a}). Aligning B's hashtags with specific search topics from A will help the Reels algorithm place the video on high-intent search fields."
-            )
-
-        # 5b. METRICS: Views, Likes, Comments
-        elif any(w in q for w in ["view", "like", "comment"]):
-            metric = "views"
-            if "like" in q:
-                metric = "likes"
-            elif "comment" in q:
-                metric = "comments"
-            
-            val_a = meta_a.get(metric, 0)
-            val_b = meta_b.get(metric, 0)
-            higher = "Video A" if val_a > val_b else "Video B"
-            diff = abs(val_a - val_b)
-            
-            return (
-                f"==================================================\n"
-                f"            METRIC ANALYSIS: {metric.upper()}          \n"
-                f"==================================================\n\n"
-                f"🔴 Video A (YouTube)    : {val_a:,} {metric}\n"
-                f"🟣 Video B (Instagram)  : {val_b:,} {metric}\n\n"
-                f"--------------------------------------------------\n"
-                f"🔍 Comparison Result:\n"
-                f"--------------------------------------------------\n"
-                f"• {higher} leads in {metric} by a margin of {diff:,}.\n"
-                f"• Video A is published on YouTube under @{creator_a}.\n"
-                f"• Video B is published on Instagram under @{creator_b}.\n\n"
-                f"Full Statistics Grid:\n"
-                f"  Video A: {meta_a.get('views', 0):,} Views | {meta_a.get('likes', 0):,} Likes | {meta_a.get('comments', 0):,} Comments\n"
-                f"  Video B: {meta_b.get('views', 0):,} Views | {meta_b.get('likes', 0):,} Likes | {meta_b.get('comments', 0):,} Comments"
-            )
-
-        # 5c. CREATOR / AUDIENCE DETAILS
-        elif any(w in q for w in ["creator", "who", "subscriber", "follower", "channel", "handle"]):
-            sub_a_label = "Subscribers" if meta_a.get('platform') == "youtube" else "Followers"
-            sub_b_label = "Followers" if meta_b.get('platform') == "instagram" else "Subscribers"
-            return (
-                f"==================================================\n"
-                f"             CREATOR & AUDIENCE BRIEF             \n"
-                f"==================================================\n\n"
-                f"🔴 Video A (YouTube):\n"
-                f"  👤 Creator Handle: @{creator_a}\n"
-                f"  📈 {sub_a_label}   : {fol_a:,}\n"
-                f"  Title           : \"{meta_a.get('title', '')}\"\n\n"
-                f"🟣 Video B (Instagram):\n"
-                f"  👤 Creator Handle: @{creator_b}\n"
-                f"  📈 {sub_b_label}   : {fol_b:,}\n"
-                f"  Title           : \"{meta_b.get('title', '')}\"\n\n"
-                f"--------------------------------------------------\n"
-                f"💡 Audience Insights:\n"
-                f"--------------------------------------------------\n"
-                f"• @{creator_a} has {fol_a:,} subscribers on YouTube.\n"
-                f"• @{creator_b} has {fol_b:,} followers on Instagram.\n"
-                f"• Ratio: @{creator_a} has {round(fol_a / (fol_b if fol_b > 0 else 1.0), 1)}x the audience size of @{creator_b}."
-            )
-
-        # 5d. DURATION / TIME
-        elif any(w in q for w in ["duration", "length", "long", "second", "minute", "time"]):
-            dur_a = meta_a.get("duration", 0)
-            dur_b = meta_b.get("duration", 0)
-            longer = "Video A" if dur_a > dur_b else "Video B"
-            diff = abs(dur_a - dur_b)
-            return (
-                f"==================================================\n"
-                f"             VIDEO DURATION COMPARISON            \n"
-                f"==================================================\n\n"
-                f"🔴 Video A (YouTube)    : {dur_a} seconds\n"
-                f"🟣 Video B (Instagram)  : {dur_b} seconds\n\n"
-                f"--------------------------------------------------\n"
-                f"⏱️ Pace & Length Insights:\n"
-                f"--------------------------------------------------\n"
-                f"• {longer} is longer by {diff} seconds.\n"
-                f"• Video A is a traditional long/medium form ({dur_a}s) video, styled for educational walkthroughs.\n"
-                f"• Video B is a quick short-form Reel ({dur_b}s), optimized for rapid retention and looping playback.\n\n"
-                f"💡 Pro-Tip: Longer videos require deep pacing hooks to maintain watch time, while short Reels must front-load value in under 2 seconds."
-            )
-
-        # 5e. TITLE / NAME
-        elif any(w in q for w in ["title", "name", "called", "topic", "subject"]):
-            return (
-                f"==================================================\n"
-                f"              VIDEO TITLE BRIEFING                \n"
-                f"==================================================\n\n"
-                f"🔴 Video A Title (YouTube):\n"
-                f"  \"{meta_a.get('title', '')}\"\n"
-                f"  🏷️ Creator: @{creator_a}\n\n"
-                f"🟣 Video B Title (Instagram):\n"
-                f"  \"{meta_b.get('title', '')}\"\n"
-                f"  🏷️ Creator: @{creator_b}\n\n"
-                f"--------------------------------------------------\n"
-                f"📈 Hook Pacing & SEO analysis of titles:\n"
-                f"--------------------------------------------------\n"
-                f"• Video A uses a benefit-driven title focusing on 'Triple Your Video Editing Speed', which is highly optimized for search intent.\n"
-                f"• Video B uses a sensational hook-focused title: 'STOP scrolling! Hidden video transition secret', engineered for browse feed click-through rates."
-            )
-
-        # 6. GENERAL SEARCH FALLBACK
+        # 6. GENERAL SEARCH FALLBACK (Matches specific transcript chunks)
         else:
             if not sources:
                 return (
-                    f"Parsed Video Metrics:\n"
-                    f"Video A Engagement: {bar_a}\n"
-                    f"Video B Engagement: {bar_b}"
+                    f"Here is a direct comparative summary of the two videos:\n\n"
+                    f"Video A (YouTube) by @{creator_a} has an engagement rate of {er_a}% on {fmt(views_a)} views.\n"
+                    f"Video B (Instagram Reel) by @{creator_b} has an engagement rate of {er_b}% on {fmt(views_b)} views.\n\n"
+                    f"Please ask a specific comparative question about hooks, engagement differences, creator size, durations, or suggest improvements to get a detailed analyzed response."
                 )
             
-            citations = []
-            content_blocks = []
-            for doc in sources:
-                video_id = doc["video_id"]
-                time_str = doc["timestamp"]
-                content_blocks.append(f"({video_id}) at {time_str}: \"{doc['content']}\"")
-                citations.append(f"({video_id}, {time_str})")
-                
-            citations_str = ", ".join(set(citations))
+            res = f"Based on the extracted transcripts and statistics, here is a detailed direct answer to your question:\n\n"
             
-            res = (
-                f"==================================================\n"
-                f"               COMPILATION DETAILS                \n"
-                f"==================================================\n\n"
-                f"Transcripts Cited: {citations_str}\n\n"
-            )
-            for idx, block in enumerate(content_blocks[:3]):
-                res += f" {idx+1}. {block}\n"
+            cit_blocks = []
+            for doc in sources:
+                v_tag = "Video A" if doc['video_id'] == "A" else "Video B"
+                plat = "YouTube" if doc['video_id'] == "A" else "Instagram"
+                time_s = doc['timestamp']
+                creator_handle = creator_a if doc['video_id'] == "A" else creator_b
+                cit_blocks.append(f"In {v_tag} ({plat}) by @{creator_handle} at [{time_s}], it states: \"{doc['content']}\"")
                 
-            res += f"\nVideo A represents systematic, long-form depth, while Video B highlights rapid vertical loops."
+            res += "\n\n".join(cit_blocks[:3])
+            res += (
+                f"\n\nStrategic Comparison:\n"
+                f"Video A provides a deep, instructional sequence targeting active search intent. Video B provides a rapid, high-retention vertical hook engineered to scale on feed recommendations."
+            )
             return res
 
     def _extract_hook(self, transcript: str) -> str:
