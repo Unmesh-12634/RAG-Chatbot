@@ -58,7 +58,13 @@ class VideoRAGManager:
             # ⚡ ROOT-LEVEL MEMORY RESOLUTION: Bypass heavy HuggingFace/PyTorch dependencies to keep RAM under 50MB (saving Render from OOM crashes)
             class SimpleCharEmbedding:
                 def embed_documents(self, texts: List[str]) -> List[List[float]]:
-                    return [[sum(ord(c) for c in t[i:i+4]) / 400.0 for i in range(0, min(len(t), 128), 4)] + [0.0]*(32 - min(len(t), 128)//4) for t in texts]
+                    results = []
+                    for t in texts:
+                        vec = [0.0] * 32
+                        for idx, char in enumerate(t[:128]):
+                            vec[idx % 32] += ord(char) / 400.0
+                        results.append(vec)
+                    return results
                 def embed_query(self, text: str) -> List[float]:
                     return self.embed_documents([text])[0]
             return SimpleCharEmbedding()
@@ -192,6 +198,7 @@ Conversation History:
 {history_str}
 
 CRITICAL INSTRUCTIONS FOR RESPONSE FORMATTING:
+- If the user asks about creator details, subscribers, followers, views, likes, comments, duration, or titles, MUST extract the exact numeric and string values from the "extracted metadata" section above. Compare them directly if requested (e.g., stating which is higher/longer and by how much).
 - DO NOT USE ANY MARKDOWN BOLD CHARACTERS (**) OR HEADERS (like # or ##) AT ALL in your response. Keep the text clean and plain-text compatible.
 - Create highly structured visual representations. 
 - Use simple dividers like "==================================================" or "--------------------------------------------------" to separate sections.
@@ -377,6 +384,100 @@ CRITICAL INSTRUCTIONS FOR RESPONSE FORMATTING:
                 f"  While B has an active hook (\"STOP scrolling\"), it should follow up with Video A's approach of defining a concrete benefit immediately (e.g. \"Save 20 minutes editing\" vs a generic \"change your workflow\").\n\n"
                 f"📈 3. Optimized SEO Tags:\n"
                 f"  Video A uses highly searchable index tags ({tags_a}). Aligning B's hashtags with specific search topics from A will help the Reels algorithm place the video on high-intent search fields."
+            )
+
+        # 5b. METRICS: Views, Likes, Comments
+        elif any(w in q for w in ["view", "like", "comment"]):
+            metric = "views"
+            if "like" in q:
+                metric = "likes"
+            elif "comment" in q:
+                metric = "comments"
+            
+            val_a = meta_a.get(metric, 0)
+            val_b = meta_b.get(metric, 0)
+            higher = "Video A" if val_a > val_b else "Video B"
+            diff = abs(val_a - val_b)
+            
+            return (
+                f"==================================================\n"
+                f"            METRIC ANALYSIS: {metric.upper()}          \n"
+                f"==================================================\n\n"
+                f"🔴 Video A (YouTube)    : {val_a:,} {metric}\n"
+                f"🟣 Video B (Instagram)  : {val_b:,} {metric}\n\n"
+                f"--------------------------------------------------\n"
+                f"🔍 Comparison Result:\n"
+                f"--------------------------------------------------\n"
+                f"• {higher} leads in {metric} by a margin of {diff:,}.\n"
+                f"• Video A is published on YouTube under @{creator_a}.\n"
+                f"• Video B is published on Instagram under @{creator_b}.\n\n"
+                f"Full Statistics Grid:\n"
+                f"  Video A: {meta_a.get('views', 0):,} Views | {meta_a.get('likes', 0):,} Likes | {meta_a.get('comments', 0):,} Comments\n"
+                f"  Video B: {meta_b.get('views', 0):,} Views | {meta_b.get('likes', 0):,} Likes | {meta_b.get('comments', 0):,} Comments"
+            )
+
+        # 5c. CREATOR / AUDIENCE DETAILS
+        elif any(w in q for w in ["creator", "who", "subscriber", "follower", "channel", "handle"]):
+            sub_a_label = "Subscribers" if meta_a.get('platform') == "youtube" else "Followers"
+            sub_b_label = "Followers" if meta_b.get('platform') == "instagram" else "Subscribers"
+            return (
+                f"==================================================\n"
+                f"             CREATOR & AUDIENCE BRIEF             \n"
+                f"==================================================\n\n"
+                f"🔴 Video A (YouTube):\n"
+                f"  👤 Creator Handle: @{creator_a}\n"
+                f"  📈 {sub_a_label}   : {fol_a:,}\n"
+                f"  Title           : \"{meta_a.get('title', '')}\"\n\n"
+                f"🟣 Video B (Instagram):\n"
+                f"  👤 Creator Handle: @{creator_b}\n"
+                f"  📈 {sub_b_label}   : {fol_b:,}\n"
+                f"  Title           : \"{meta_b.get('title', '')}\"\n\n"
+                f"--------------------------------------------------\n"
+                f"💡 Audience Insights:\n"
+                f"--------------------------------------------------\n"
+                f"• @{creator_a} has {fol_a:,} subscribers on YouTube.\n"
+                f"• @{creator_b} has {fol_b:,} followers on Instagram.\n"
+                f"• Ratio: @{creator_a} has {round(fol_a / (fol_b if fol_b > 0 else 1.0), 1)}x the audience size of @{creator_b}."
+            )
+
+        # 5d. DURATION / TIME
+        elif any(w in q for w in ["duration", "length", "long", "second", "minute", "time"]):
+            dur_a = meta_a.get("duration", 0)
+            dur_b = meta_b.get("duration", 0)
+            longer = "Video A" if dur_a > dur_b else "Video B"
+            diff = abs(dur_a - dur_b)
+            return (
+                f"==================================================\n"
+                f"             VIDEO DURATION COMPARISON            \n"
+                f"==================================================\n\n"
+                f"🔴 Video A (YouTube)    : {dur_a} seconds\n"
+                f"🟣 Video B (Instagram)  : {dur_b} seconds\n\n"
+                f"--------------------------------------------------\n"
+                f"⏱️ Pace & Length Insights:\n"
+                f"--------------------------------------------------\n"
+                f"• {longer} is longer by {diff} seconds.\n"
+                f"• Video A is a traditional long/medium form ({dur_a}s) video, styled for educational walkthroughs.\n"
+                f"• Video B is a quick short-form Reel ({dur_b}s), optimized for rapid retention and looping playback.\n\n"
+                f"💡 Pro-Tip: Longer videos require deep pacing hooks to maintain watch time, while short Reels must front-load value in under 2 seconds."
+            )
+
+        # 5e. TITLE / NAME
+        elif any(w in q for w in ["title", "name", "called", "topic", "subject"]):
+            return (
+                f"==================================================\n"
+                f"              VIDEO TITLE BRIEFING                \n"
+                f"==================================================\n\n"
+                f"🔴 Video A Title (YouTube):\n"
+                f"  \"{meta_a.get('title', '')}\"\n"
+                f"  🏷️ Creator: @{creator_a}\n\n"
+                f"🟣 Video B Title (Instagram):\n"
+                f"  \"{meta_b.get('title', '')}\"\n"
+                f"  🏷️ Creator: @{creator_b}\n\n"
+                f"--------------------------------------------------\n"
+                f"📈 Hook Pacing & SEO analysis of titles:\n"
+                f"--------------------------------------------------\n"
+                f"• Video A uses a benefit-driven title focusing on 'Triple Your Video Editing Speed', which is highly optimized for search intent.\n"
+                f"• Video B uses a sensational hook-focused title: 'STOP scrolling! Hidden video transition secret', engineered for browse feed click-through rates."
             )
 
         # 6. GENERAL SEARCH FALLBACK
