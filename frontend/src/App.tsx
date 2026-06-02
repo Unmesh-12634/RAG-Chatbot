@@ -12,41 +12,7 @@ interface ChatMessage {
   sources?: SourceCitation[];
 }
 
-// Default preloaded comparison data
-const DEFAULT_VIDEO_A: VideoData = {
-  platform: 'youtube',
-  video_id: 'dQw4w9WgXcQ',
-  title: 'Secret Shortcut to Triple Your Video Editing Speed',
-  creator: 'creative_insights',
-  follower_count: 145000,
-  views: 89000,
-  likes: 7200,
-  comments: 480,
-  engagement_rate: 8.63,
-  upload_date: '2026-05-15',
-  duration: 184,
-  hashtags: ['#editing', '#videoediting', '#tutorial', '#shortcuts'],
-  transcript: '[00:00] Hey everyone, today I am revealing the absolute best editing hack. [00:05] If you want to triple your editing speed, you need this shortcut. [00:10] Most editors waste hours manually dragging clips. [00:15] But watch this, if you click this toggle and hit Command-R. [00:20] It ripples and updates the entire sequence automatically. [00:25] Save this tip and subscribe for more editing hacks!',
-  auto_fetch_success: true
-};
 
-const DEFAULT_VIDEO_B: VideoData = {
-  platform: 'instagram',
-  video_id: 'C34xyz123',
-  title: 'STOP scrolling! Hidden video transition secret',
-  creator: 'creative_mind',
-  follower_count: 89400,
-  views: 250000,
-  likes: 28400,
-  comments: 1420,
-  engagement_rate: 11.93,
-  upload_date: '2026-05-25',
-  duration: 45,
-  hashtags: ['#creators', '#viralreels', '#editingtips', '#hacks'],
-  transcript: '[00:00] STOP scrollin\'! If you are still editing your videos like this, you are wasting hours! [00:05] Check this out. There is a hidden secret inside the editor. [00:10] Most people do it the long way, clicking clip after clip. But watch this. [00:15] If you press Shift-Cmd-M, a secret menu pops up. [00:20] This lets you batch apply transitions in a single click! [00:25] Just select your clips, pick your transition style, and boom, they are all done! [00:30] Look at that timeline. Perfectly smooth, saved me twenty minutes. [00:35] I use this shortcut on every single video now. [00:40] Share this with an editor friend, and follow for more insane hacks!',
-  auto_fetch_success: true,
-  message: 'Pre-loaded default comparison Reels. Feel free to customize!'
-};
 
 export default function App() {
   // Theme Management State
@@ -66,14 +32,14 @@ export default function App() {
   };
 
   // URLs & Fetching State
-  const [urlA, setUrlA] = useState('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
-  const [urlB, setUrlB] = useState('https://www.instagram.com/reel/C34xyz123/');
+  const [urlA, setUrlA] = useState('');
+  const [urlB, setUrlB] = useState('');
   const [isFetching, setIsFetching] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
   // Video Data
-  const [videoA, setVideoA] = useState<VideoData | null>(DEFAULT_VIDEO_A);
-  const [videoB, setVideoB] = useState<VideoData | null>(DEFAULT_VIDEO_B);
+  const [videoA, setVideoA] = useState<VideoData | null>(null);
+  const [videoB, setVideoB] = useState<VideoData | null>(null);
 
   // Indexing Vector DB State
   const [provider, setProvider] = useState<string>('local');
@@ -98,39 +64,15 @@ export default function App() {
   const accumulatedTextRef = useRef<string>('');
   const accumulatedSourcesRef = useRef<SourceCitation[]>([]);
 
-  // Load API Keys from localStorage on mount & perform first-load background sync
+  // Load API Keys from localStorage on mount
   useEffect(() => {
     const savedProvider = localStorage.getItem('rag_provider');
     const savedKey = localStorage.getItem('rag_api_key');
-    const finalProvider = savedProvider || 'local';
-    const finalKey = savedKey || '';
     
     if (savedProvider) setProvider(savedProvider);
     if (savedKey) setApiKey(savedKey);
 
-    const initBootSync = async () => {
-      try {
-        setIsIndexing(true);
-        setIndexMessage("Initializing vector database with default comparative video data...");
-        const res = await indexVideosInDB(DEFAULT_VIDEO_A, DEFAULT_VIDEO_B, finalProvider, finalKey);
-        if (res.success) {
-          setIsIndexed(true);
-          setIndexMessage("Boot-sync complete! Studio is active and comparative chat is unlocked.");
-        }
-      } catch (err: any) {
-        console.error("Boot index sync failed:", err);
-        setIndexMessage(`Startup sync warning: ${err.message || 'Server not reachable'}. Please click Sync to retry.`);
-        setIsIndexed(false);
-      } finally {
-        setIsIndexing(false);
-      }
-    };
-
-    const timer = setTimeout(() => {
-      initBootSync();
-    }, 1500);
-
-    return () => clearTimeout(timer);
+    setIndexMessage("Welcome to RAG Creator Studio! Enter video links above and click 'Analyze' to begin.");
   }, []);
 
   // Auto-scroll chat to bottom
@@ -433,7 +375,7 @@ export default function App() {
           </div>
 
           {/* Side-by-side editable cards */}
-          {videoA && videoB && (
+          {videoA && videoB ? (
             <>
               <div className="video-workspace">
                 {/* VIDEO A: YouTube */}
@@ -661,16 +603,24 @@ export default function App() {
                   )}
                 </button>
               </div>
-              
-              {indexMessage && (
-                <div className="alert-panel" style={{ marginTop: '0', background: isIndexed ? 'rgba(22, 163, 74, 0.08)' : '', borderColor: isIndexed ? 'rgba(22, 163, 74, 0.2)' : '' }}>
-                  <span className="alert-icon" style={{ color: isIndexed ? 'var(--accent-green)' : 'var(--primary)' }}>
-                    {isIndexed ? '✓' : 'ℹ️'}
-                  </span>
-                  <div>{indexMessage}</div>
-                </div>
-              )}
             </>
+          ) : (
+            <div className="glass-card" style={{ padding: '2.5rem 1.5rem', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem', marginTop: '1.25rem' }}>
+              <div style={{ fontSize: '3rem' }}>📊</div>
+              <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: '700', fontSize: '1.25rem' }}>No Video Data Loaded</h3>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', maxWidth: '420px', margin: '0 auto', lineHeight: '1.5' }}>
+                Enter a YouTube video URL and an Instagram Reel URL in the fields above, then click <strong>Analyze & Extract Video Details</strong> to load metrics, transcripts, and start comparative indexing.
+              </p>
+            </div>
+          )}
+
+          {indexMessage && (
+            <div className="alert-panel" style={{ background: isIndexed ? 'rgba(22, 163, 74, 0.08)' : '', borderColor: isIndexed ? 'rgba(22, 163, 74, 0.2)' : '' }}>
+              <span className="alert-icon" style={{ color: isIndexed ? 'var(--accent-green)' : 'var(--primary)' }}>
+                {isIndexed ? '✓' : 'ℹ️'}
+              </span>
+              <div>{indexMessage}</div>
+            </div>
           )}
 
         </section>
@@ -795,7 +745,7 @@ export default function App() {
                   className="chat-input"
                   placeholder={
                     !isIndexed 
-                      ? "Re-indexing workspace..." 
+                      ? "Load and sync video data to unlock chat..." 
                       : "Ask about hooks, engagement differences, creator size..."
                   }
                   value={inputQuestion}
