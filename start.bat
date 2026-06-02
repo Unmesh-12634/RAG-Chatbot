@@ -6,7 +6,7 @@ echo ===================================================
 echo.
 
 :: 1. Launch FastAPI Backend
-echo 🔌 Starting FastAPI Backend Server (Port: 8000)...
+echo 🔌 Starting FastAPI Backend Server (Port: 8001)...
 start "RAG Backend" /min cmd /c "cd backend && .venv\Scripts\python.exe -m uvicorn main:app --host 127.0.0.1 --port 8001"
 
 :: 2. Launch React Frontend
