@@ -236,11 +236,13 @@ CRITICAL INSTRUCTIONS FOR RESPONSE FORMATTING:
         response_text = self._generate_programmatic_response(question, meta_a, meta_b, sources)
         
         # Stream the programmatic response with a nice typing effect
-        words = response_text.split(" ")
-        for i in range(0, len(words), 2):
-            chunk = " ".join(words[i:i+2]) + " "
-            yield {"type": "token", "text": chunk}
-            time.sleep(0.02)
+        import re
+        tokens = re.split(r'(\s+)', response_text)
+        for i in range(0, len(tokens), 3):
+            chunk = "".join(tokens[i:i+3])
+            if chunk:
+                yield {"type": "token", "text": chunk}
+                time.sleep(0.01)
             
         yield {"type": "end"}
 

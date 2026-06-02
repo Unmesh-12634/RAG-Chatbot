@@ -133,7 +133,7 @@ export async function streamChatResponse(
           if (line.startsWith('event: ')) {
             eventType = line.substring(7).trim();
           } else if (line.startsWith('data: ')) {
-            dataVal = line.substring(6).trim();
+            dataVal = line.substring(6).replace(/\r$/, '');
           }
         }
 
